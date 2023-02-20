@@ -41,6 +41,9 @@ class MLBlock(dict):
         # print(var_name)
 
         LT = f.read(8)
+        # print(len(LT))
+        if len(LT) == 0:
+            return None
         LT = struct.unpack('Q', LT)[0]
         # print(f'LT: {LT}')
         var_type = f.read(LT)
@@ -132,9 +135,12 @@ class MLBlock(dict):
 
             for field in range(n_fields * np.prod(self.var_size)):
                 bl = MLBlock.generate_block(f)
-                if recursive:
-                    self[bl.var_name] = bl
-                bl.read_data(f, recursive=recursive)
+                if bl is None:
+                    pass
+                else:
+                    if recursive:
+                        self[bl.var_name] = bl
+                    bl.read_data(f, recursive=recursive)
 
         elif self.var_type == 'cell':
             # cells are always 2D
@@ -144,13 +150,17 @@ class MLBlock(dict):
                 bl = MLBlock.generate_block(f)
                 if recursive:
                     data[field] = bl
+                
+                if bl is None:
+                    pass
+                else:
+                    bl.read_data(f, recursive=recursive)
 
-                bl.read_data(f, recursive=recursive)
             data = data.reshape(self.var_size)
             self.data = data
 
-        else:
-            raise ValueError(f'unknown variable type {self.var_type}')
+        # else:
+        #     raise ValueError(f'unknown variable type {self.var_type}')
 
         self.flatten()
 
