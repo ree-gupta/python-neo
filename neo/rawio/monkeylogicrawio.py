@@ -22,7 +22,8 @@ class MLBlock(dict):
                     'integers': (8, 'Q'),
                     'uint8': (1, 'B'),
                     'single': (4, 'f'),
-                    'double': (8, 'd')}
+                    'double': (8, 'd'),
+                    'uint64': (8, 'L')}
 
     @staticmethod
     def generate_block(f):
@@ -79,6 +80,11 @@ class MLBlock(dict):
         if self.data is None:
             shape = 0
             dt = ''
+
+        elif not hasattr(self.data, '__len__'):
+            shape = 1
+            dt = f' dtype: {self.var_type}'
+
         else:
             shape = getattr(self.data, 'shape', len(self.data))
             dt = f' dtype: {self.var_type}'
@@ -159,8 +165,11 @@ class MLBlock(dict):
             data = data.reshape(self.var_size)
             self.data = data
 
-        # else:
-        #     raise ValueError(f'unknown variable type {self.var_type}')
+        elif self.var_type == 'function_handle':
+            pass
+
+        else:
+            raise ValueError(f'unknown variable type {self.var_type}')
 
         self.flatten()
 
@@ -226,6 +235,9 @@ class MonkeyLogicRawIO(BaseRawIO):
 
         exclude_signals = ['SampleInterval']
 
+        print(self.ml_blocks.keys())
+        print(self.ml_blocks.values())
+
         # rawio configuration
         signal_streams = []
         signal_channels = []
@@ -240,14 +252,40 @@ class MonkeyLogicRawIO(BaseRawIO):
             def _register_signal(sig_block, name):
                 nonlocal stream_id
                 nonlocal chan_id
-                if not isinstance(sig_data, dict) and any(sig_data.shape):
+                if not isinstance(sig_data, dict) and any(np.shape(sig_data)):
                     signal_streams.append((name, stream_id))
 
                     sr = 1  # TODO: Where to get the sampling rate info?
+                    # ML/Trial1/AnalogData/SampleInterval
+                    # ML/MLConfig/HighFrequencyDAQ/SampleRate
+                    # ML/MLConfig/VoiceRecording/SampleRate
+                    # ML/MLConfig/AISampleRate
+                    # ML/TrialRecord/LastTrialAnalogData/SampleInterval
+
                     dtype = type(sig_data)
                     units = ''  # TODO: Where to find the unit info?
+                    # Degree of visual angle is default coordinate system used by ML, see here:
+                    # https://monkeylogic.nimh.nih.gov/docs_CoordinateConversion.html
+
+                    # /ML/MLConfig/DiagonalSize
+                    # /ML/MLConfig/ViewingDistance
+
+                    # ML/MLConfig/Screen has details about screen, specifically:
+                    # /ML/MLConfig/Screen/Xsize
+                    # /ML/MLConfig/Screen/Ysize
+                    # /ML/MLConfig/Screen/PixelsPerDegree
+                    # /ML/MLConfig/Screen/RefreshRate
+                    # /ML/MLConfig/Screen/FrameLength
+                    # /ML/MLConfig/Screen/VBlankLength
+
                     gain = 1  # TODO: Where to find the gain info?
+
+                    # ML/MLConfig/Webcam/1/Property/Gain
+
                     offset = 0  # TODO: Can signals have an offset in ML?
+
+                    # /ML/MLConfig/EyeTransform/2/offset if it exists
+
                     stream_id = 0  # all analog data belong to same stream
 
                     if sig_block.shape[1] == 1:
@@ -264,9 +302,14 @@ class MonkeyLogicRawIO(BaseRawIO):
             for sig_name, sig_data in ana_block.items():
                 if sig_name in exclude_signals:
                     continue
+                    
+                print(sig_name)
+                print(sig_data)
+                # print(sig_sub_name)
+                # print(sig_sub_data)
 
                 # 1st level signals ('Trial1'/'AnalogData'/<signal>')
-                if not isinstance(sig_data, dict) and any(sig_data.shape):
+                if not isinstance(sig_data, dict) and any(np.shape(sig_data)):
                     _register_signal(sig_data, name=sig_name)
 
                 # 2nd level signals ('Trial1'/'AnalogData'/<signal_group>/<signal>')
@@ -337,7 +380,7 @@ class MonkeyLogicRawIO(BaseRawIO):
             seg_ann = self.raw_annotations['blocks'][0]['segments'][trial_id-1]
             seg_ann.update(_filter_keys(ml_trial, ignore_annotations))
 
-        event_ann = seg_ann['events'][0]  # 0 is event
+        # event_ann = seg_ann['events'][0]  # 0 is event
         # epoch_ann = seg_ann['events'][1]  # 1 is epoch
 
     def _segment_t_start(self, block_index, seg_index):
