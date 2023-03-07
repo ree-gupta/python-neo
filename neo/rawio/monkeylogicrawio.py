@@ -11,6 +11,7 @@ Author: Julia Sprenger
 
 import numpy as np
 import struct
+from typing import Union
 
 from .baserawio import (BaseRawIO, _signal_channel_dtype, _signal_stream_dtype,
                         _spike_channel_dtype, _event_channel_dtype)
@@ -370,12 +371,37 @@ class MonkeyLogicRawIO(BaseRawIO):
 
         ml_ann = {k: v for k, v in self.ml_blocks.items() if k in ['MLConfig', 'TrialRecord']}
         ml_ann = _filter_keys(ml_ann, ignore_annotations)
+        # normalize annotation values, convert arrays to lists
+
+        def recursively_replace_arrays(container: Union[dict, list]) -> None:
+            """
+            Replace numpy arrays in nested dictionary and list structures by lists
+            """"
+
+            if isinstance(container, dict):
+                iterator = container.items()
+            elif isinstance(container, list):
+                iterator = enumerate(container)
+
+            for k, v in iterator:
+                if isinstance(v, dict):
+                    recursively_replace_arrays(v)
+                elif isinstance(v, np.ndarray):
+                    container[k] = list(v)
+                    recursively_replace_arrays(container[k])
+                elif isinstance(v, list):
+                    recursively_replace_arrays(container[k])
+
+        recursively_replace_arrays(ml_ann)
+
         bl_ann = self.raw_annotations['blocks'][0]
         bl_ann.update(ml_ann)
 
         for trial_id in self.trial_ids:
             ml_trial = self.ml_blocks[f'Trial{trial_id}']
             assert ml_trial['Trial'] == trial_id
+
+            recursively_replace_arrays(ml_trial)
 
             seg_ann = self.raw_annotations['blocks'][0]['segments'][trial_id-1]
             seg_ann.update(_filter_keys(ml_trial, ignore_annotations))
