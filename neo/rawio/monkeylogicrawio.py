@@ -376,7 +376,7 @@ class MonkeyLogicRawIO(BaseRawIO):
         def recursively_replace_arrays(container: Union[dict, list]) -> None:
             """
             Replace numpy arrays in nested dictionary and list structures by lists
-            """"
+            """
 
             if isinstance(container, dict):
                 iterator = container.items()
