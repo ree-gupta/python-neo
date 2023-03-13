@@ -82,7 +82,7 @@ class MLBlock(dict):
             dt = ''
 
         elif not hasattr(self.data, '__len__'):
-            shape = 1
+            shape = (1, )
             dt = f' dtype: {self.var_type}'
 
         else:
