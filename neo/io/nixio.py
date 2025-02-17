@@ -866,7 +866,7 @@ class NixIO(BaseIO):
         nixdas = list()
         for idx, row in enumerate(data):
             daname = f"{nix_name}.{idx}"
-            da = nixblock.create_data_array(daname, "neo.analogsignal", data=row)
+            da = nixblock.create_data_array(daname, "neo.analogsignal", data=row, dtype=np.uint16)
             da.metadata = metadata
             da.definition = anasig.description
             da.unit = units_to_string(anasig.units)
