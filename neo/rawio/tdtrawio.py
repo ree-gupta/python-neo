@@ -75,12 +75,21 @@ class TdtRawIO(BaseRawIO):
         """
         BaseRawIO.__init__(self)
         dirname = Path(dirname)
-        if dirname.is_dir():
+        if dirname.is_dir() and is_tdtblock(dirname):
+            # dirname is a block folder (e.g. .../Session/Block-1/).
+            # Redirect to the parent tank so _get_filestem and SEV lookup work
+            # correctly, but expose only this single segment.
+            self.dirname = dirname.parent
+            self._single_segment = dirname.stem
+            self.tdt_block_mode = "multi"
+        elif dirname.is_dir():
             self.dirname = Path(dirname)
+            self._single_segment = None
             self.tdt_block_mode = "multi"
         elif dirname.is_file():
             # in single tdt block mode the dirname also contains the block prefix
             self.dirname = dirname.with_suffix("")
+            self._single_segment = None
             self.tdt_block_mode = "single"
         else:
             raise ValueError(f"No data folder or file found for {dirname}")
@@ -100,9 +109,12 @@ class TdtRawIO(BaseRawIO):
         segment_names = []
         if self.tdt_block_mode == "multi":
             tankname = self.dirname.stem
-            for path in self.dirname.iterdir():
-                if is_tdtblock(path):
-                    segment_names.append(path.stem)
+            if self._single_segment is not None:
+                segment_names = [self._single_segment]
+            else:
+                for path in self.dirname.iterdir():
+                    if is_tdtblock(path):
+                        segment_names.append(path.stem)
 
         # if no block structure was detected, check if current dir contains a set of data
         elif is_tdtblock(self.dirname.parent):
